@@ -3,9 +3,11 @@ const reviewModel = require('../models/reviewModel');
 const ObjectId = require('mongoose').Types.ObjectId
 const userModel = require('../models/userModel')
 const jwt = require('jsonwebtoken')
+const  upload= require('../upload/upload')
 
 const createBooks = async function(req,res){
-    try{let bookData = req.body;
+    try{
+    let bookData = req.body;
     if(Object.keys(bookData).length == 0) return res.status(400).send({status : false, msg : "Pleasse enter the details of the book"})
 
     // Validation of title
@@ -23,6 +25,7 @@ const createBooks = async function(req,res){
     if(!bookData.userId) return res.status(400).send({status:false,msg:'enter the userId of the book'})
     if(!ObjectId.isValid(bookData.userId.trim())) return res.status(400).send({status:false,msg:'userId is not valid'})
     
+    // authorization
     let token = req.headers["x-api-key"]
     let decodedToken = jwt.verify(token, "secret-key", {ignoreExpiration: true})
     if(bookData.userId.trim() != decodedToken.userId) return res.status(401).send({status:false, msg:'You are not authorized to make the changes'})
@@ -32,23 +35,39 @@ const createBooks = async function(req,res){
     // Validation of ISBN
     if(!bookData.ISBN) return res.status(400).send({status:false,msg:'enter the ISBN of the book'})
     if(typeof(bookData.ISBN) != typeof(' ')) return res.status(400).send({status:false,msg:`enter ISBN in the proper format`})
+    if(bookData.ISBN.trim().length == 0) return res.status(400).send({status:false,msg:"enter the ISBN in proper format"})
     let dupISBN = await bookModel.findOne({ISBN : bookData.ISBN.trim()})
     if(dupISBN) return res.status(400).send({status : false, msg: 'book with this ISBN already exist'})
 
     // Validation of category
     if(!bookData.category) return res.status(400).send({status : false, msg: 'enter the category of the book'})
     if(typeof(bookData.category) != typeof(' ')) return res.status(400).send({status:false,msg:`enter category in the proper format`})
+    if(bookData.category.trim().length == 0) return res.status(400).send({status:false, msg:"enter the category in proper format"})
 
+    // validation of subcategory
     if(!bookData.subcategory) return res.status(400).send({status : false, msg: 'enter the subcategory of the book'})
     if(typeof(bookData.subcategory) != typeof(' ')) return res.status(400).send({status:false,msg:`enter subcategory in the proper format`})
+    if(bookData.subcategory.trim().length == 0) return res.status(400).send({status:false, msg:"enter the subcategory in proper format"})
+
     // format of regx == "YYYY-MM-DD"
-    if(Object.keys(bookData).includes('releasedAt')){
-        if(!(/^\d{4}\-(0?[1-9]|1[012])\-(0?[1-9]|[12][0-9]|3[01])$/.test(bookData.releasedAt.trim()))){
-            return res.status(400).send({status:false,msg:"released Date is not valid"})
-        }
+    if(!bookData.releasedAt) return res.status(400).send({status:false,msg:'enter the released date of the book'})
+    if(!(/^\d{4}\-(0?[1-9]|1[012])\-(0?[1-9]|[12][0-9]|3[01])$/.test(bookData.releasedAt.trim()))){
+        return res.status(400).send({status:false,msg:"released Date is not valid"})
     }
+    let files = req.files
+    if (files && files.length > 0) {
+            //upload to s3 and get the uploaded link
+            // res.send the link back to frontend/postman
+        var uploadedFileURL = await upload.uploadFile(files[0]) // used var to declare uploadedFileURl in global scope
+    }
+    else {
+         res.status(400).send({ msg: "No file found" })
+    }
+    bookData.bookCover = uploadedFileURL;
+
     
     let data = await bookModel.create(bookData)
+
     return res.status(201).send({status:true,msg:'success',data : data})
 }catch(error){
     return res.status(500).send({status:false,msg:error.message})

@@ -2,7 +2,8 @@ const mongoose = require('mongoose')
 
 const userSchema = new mongoose.Schema({
     title: {
-        type: String, trim: true,
+        type: String,
+         trim: true,
         required: true,
         enum: ["Mr", "Mrs", "Miss"]
     },
